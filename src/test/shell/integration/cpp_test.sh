@@ -129,6 +129,215 @@ EOF
   bazel build //$pkg:a || fail "build failled"
 }
 
+function test_no_recompile_on_unused_headers() {
+  local -r pkg=$FUNCNAME
+  mkdir -p $pkg
+  cat > $pkg/BUILD <<EOF
+cc_binary(name="a", srcs=["a.cc"], deps=["b"])
+cc_library(name="b", includes=["."], hdrs=["b.h"])
+EOF
+
+  cat > $pkg/a.cc <<EOF
+#include "b.h"
+
+int main(void) {
+  return B_RETURN_VALUE;
+}
+EOF
+
+  cat > $pkg/b.h <<EOF
+#define B_RETURN_VALUE 31
+EOF
+
+  bazel build -s //$pkg:a >& $TEST_log || fail "build failed"
+  expect_log "Compiling $pkg/a.cc"
+
+  cat > $pkg/BUILD <<EOF
+cc_binary(name="a", srcs=["a.cc", "unused.h"], deps=["b"])
+cc_library(name="b", includes=["."], hdrs=["b.h"])
+EOF
+
+  cat > $pkg/unused.h <<EOF
+=== BANANA ===
+EOF
+
+  rm --verbose $TEST_log
+  bazel build -s //$pkg:a >& $TEST_log || fail "build failed"
+  expect_not_log "Compiling $pkg/a.cc"
+}
+
+function test_no_recompile_on_unused_headers_from_dependency() {
+  local -r pkg=$FUNCNAME
+  mkdir -p $pkg
+  cat > $pkg/BUILD <<EOF
+cc_binary(name="a", srcs=["a.cc"], deps=["b"])
+cc_library(name="b", includes=["."], hdrs=["b.h"])
+EOF
+
+  cat > $pkg/a.cc <<EOF
+#include "b.h"
+
+int main(void) {
+  return B_RETURN_VALUE;
+}
+EOF
+
+  cat > $pkg/b.h <<EOF
+#define B_RETURN_VALUE 31
+EOF
+
+  bazel build -s //$pkg:a >& $TEST_log || fail "build failed"
+  expect_log "Compiling $pkg/a.cc"
+
+  cat > $pkg/BUILD <<EOF
+cc_binary(name="a", srcs=["a.cc"], deps=["b"])
+cc_library(name="b", includes=["."], hdrs=["b.h", "unused.h"])
+EOF
+
+  cat > $pkg/unused.h <<EOF
+=== BANANA ===
+EOF
+
+  rm --verbose $TEST_log
+  bazel build -s //$pkg:a >& $TEST_log || fail "build failed"
+  expect_not_log "Compiling $pkg/a.cc"
+}
+
+function test_recompile_on_unused_headers_from_dependency_but_changed_copts() {
+  local -r pkg=$FUNCNAME
+  mkdir -p $pkg
+  cat > $pkg/BUILD <<EOF
+cc_binary(name="a", srcs=["a.cc"], deps=["b"])
+cc_library(name="b", includes=["."], hdrs=["b.h"])
+EOF
+
+  cat > $pkg/a.cc <<EOF
+#include "b.h"
+
+int main(void) {
+  return B_RETURN_VALUE;
+}
+EOF
+
+  cat > $pkg/b.h <<EOF
+#define B_RETURN_VALUE 31
+EOF
+
+  bazel build -s //$pkg:a >& $TEST_log || fail "build failed"
+  expect_log "Compiling $pkg/a.cc"
+
+  cat > $pkg/BUILD <<EOF
+cc_binary(name="a", srcs=["a.cc"], deps=["b"], copts=["-DMYFLAG"])
+cc_library(name="b", includes=["."], hdrs=["b.h", "unused.h"])
+EOF
+
+  cat > $pkg/unused.h <<EOF
+=== BANANA ===
+EOF
+
+  rm --verbose $TEST_log
+  bazel build -s //$pkg:a >& $TEST_log || fail "build failed"
+  expect_log "Compiling $pkg/a.cc"
+}
+
+function test_recompile_new_header_is_used() {
+  local -r pkg=$FUNCNAME
+  mkdir -p $pkg
+  cat > $pkg/BUILD <<EOF
+cc_binary(name="a", srcs=["a.cc"], deps=["b"])
+cc_library(name="b", includes=["."], hdrs=["b.h"])
+EOF
+
+  cat > $pkg/a.cc <<EOF
+#include "b.h"
+
+int main(void) {
+  return B_RETURN_VALUE;
+}
+EOF
+
+  cat > $pkg/b.h <<EOF
+#define B_RETURN_VALUE 31
+EOF
+
+  bazel build -s //$pkg:a >& $TEST_log || fail "build failed"
+  expect_log "Compiling $pkg/a.cc"
+
+  cat > $pkg/BUILD <<EOF
+cc_binary(name="a", srcs=["a.cc", "foo.h"], deps=["b"])
+cc_library(name="b", includes=["."], hdrs=["b.h"])
+EOF
+
+  cat > $pkg/foo.h <<EOF
+struct foo {
+    int a;
+    double b;
+};
+EOF
+
+  cat > $pkg/a.cc <<EOF
+#include "b.h"
+#include "foo.h"
+
+int main(void) {
+  return B_RETURN_VALUE;
+}
+EOF
+
+  rm --verbose $TEST_log
+  bazel build -s //$pkg:a >& $TEST_log || fail "build failed"
+  expect_log "Compiling $pkg/a.cc"
+}
+
+function test_recompile_new_header_from_dependency_is_used() {
+  local -r pkg=$FUNCNAME
+  mkdir -p $pkg
+  cat > $pkg/BUILD <<EOF
+cc_binary(name="a", srcs=["a.cc"], deps=["b"])
+cc_library(name="b", includes=["."], hdrs=["b.h"])
+EOF
+
+  cat > $pkg/a.cc <<EOF
+#include "b.h"
+
+int main(void) {
+  return B_RETURN_VALUE;
+}
+EOF
+
+  cat > $pkg/b.h <<EOF
+#define B_RETURN_VALUE 31
+EOF
+
+  bazel build -s //$pkg:a >& $TEST_log || fail "build failed"
+  expect_log "Compiling $pkg/a.cc"
+
+  cat > $pkg/BUILD <<EOF
+cc_binary(name="a", srcs=["a.cc"], deps=["b"])
+cc_library(name="b", includes=["."], hdrs=["b.h", "foo.h"])
+EOF
+
+  cat > $pkg/foo.h <<EOF
+struct foo {
+    int a;
+    double b;
+};
+EOF
+
+  cat > $pkg/a.cc <<EOF
+#include "b.h"
+#include "foo.h"
+
+int main(void) {
+  return B_RETURN_VALUE;
+}
+EOF
+
+  rm --verbose $TEST_log
+  bazel build -s //$pkg:a >& $TEST_log || fail "build failed"
+  expect_log "Compiling $pkg/a.cc"
+}
+
 function test_no_recompile_on_shutdown() {
   local -r pkg=$FUNCNAME
   mkdir -p $pkg
