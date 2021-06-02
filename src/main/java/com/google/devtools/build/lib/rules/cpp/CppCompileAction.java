@@ -30,6 +30,7 @@ import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.devtools.build.lib.actions.AbstractAction;
+import com.google.devtools.build.lib.actions.ActionCacheAwareAction;
 import com.google.devtools.build.lib.actions.ActionContinuationOrResult;
 import com.google.devtools.build.lib.actions.ActionEnvironment;
 import com.google.devtools.build.lib.actions.ActionExecutionContext;
@@ -41,6 +42,7 @@ import com.google.devtools.build.lib.actions.ActionOwner;
 import com.google.devtools.build.lib.actions.ActionResult;
 import com.google.devtools.build.lib.actions.Artifact;
 import com.google.devtools.build.lib.actions.ArtifactResolver;
+import com.google.devtools.build.lib.actions.cache.ActionCache;
 import com.google.devtools.build.lib.actions.CommandAction;
 import com.google.devtools.build.lib.actions.CommandLine;
 import com.google.devtools.build.lib.actions.CommandLineExpansionException;
@@ -118,7 +120,7 @@ import net.starlark.java.eval.StarlarkList;
 
 /** Action that represents some kind of C++ compilation step. */
 @ThreadCompatible
-public class CppCompileAction extends AbstractAction implements IncludeScannable, CommandAction {
+public class CppCompileAction extends AbstractAction implements ActionCacheAwareAction, IncludeScannable, CommandAction {
 
   private static final PathFragment BUILD_PATH_FRAGMENT = PathFragment.create("BUILD");
 
@@ -354,6 +356,18 @@ public class CppCompileAction extends AbstractAction implements IncludeScannable
   @Override
   public NestedSet<Artifact> getMandatoryInputs() {
     return mandatoryInputs;
+  }
+
+  @Override
+  public boolean storeInputsExecPathsInActionCache() {
+    return true; // TODO What shall the default be? (Irrelevant for POC)
+  }
+
+  @Override
+  public void filterIncludeSrcs(ActionCache.Entry entry) {
+    if (entry != null) {
+      ccCompilationContext.filterIncludeSrcs(entry.getPaths());
+    }
   }
 
   @Override

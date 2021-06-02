@@ -74,7 +74,7 @@ public final class CcCompilationContext implements CcCompilationContextApi<Artif
   private final CommandLineCcCompilationContext commandLineCcCompilationContext;
 
   private final NestedSet<PathFragment> looseHdrsDirs;
-  private final NestedSet<Artifact> declaredIncludeSrcs;
+  private NestedSet<Artifact> declaredIncludeSrcs;  // POC-only: Has to differ for computeKey()
 
   /** Module maps from direct dependencies. */
   private final ImmutableList<Artifact> directModuleMaps;
@@ -152,6 +152,15 @@ public final class CcCompilationContext implements CcCompilationContextApi<Artif
   @Override
   public boolean isImmutable() {
     return true; // immutable and Starlark-hashable
+  }
+
+  public void filterIncludeSrcs(Collection<String> files) {
+      declaredIncludeSrcs =
+          NestedSetBuilder.wrap(declaredIncludeSrcs.getOrder(),
+                                declaredIncludeSrcs.toList()
+                                    .stream()
+                                    .filter(p->files.contains(p.prettyPrint()))
+                                    .collect(ImmutableSet.toImmutableSet()));
   }
 
   @Override

@@ -27,6 +27,7 @@ import com.google.devtools.build.lib.actions.ActionExecutionContext;
 import com.google.devtools.build.lib.actions.ActionExecutionException;
 import com.google.devtools.build.lib.actions.ActionOwner;
 import com.google.devtools.build.lib.actions.Artifact;
+import com.google.devtools.build.lib.actions.cache.ActionCache;
 import com.google.devtools.build.lib.actions.CommandLineExpansionException;
 import com.google.devtools.build.lib.actions.CommandLines;
 import com.google.devtools.build.lib.actions.CommandLines.CommandLineLimits;
@@ -143,6 +144,11 @@ public final class StarlarkAction extends SpawnAction implements ActionCacheAwar
   @Override
   public boolean isShareable() {
     return !unusedInputsList.isPresent();
+  }
+
+  @Override
+  public void filterIncludeSrcs(ActionCache.Entry entry) {
+    // no-op
   }
 
   @Override

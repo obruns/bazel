@@ -25,6 +25,7 @@ import com.google.devtools.build.lib.actions.Artifact;
 import com.google.devtools.build.lib.actions.Artifact.NinjaMysteryArtifact;
 import com.google.devtools.build.lib.actions.ArtifactResolver;
 import com.google.devtools.build.lib.actions.ArtifactRoot;
+import com.google.devtools.build.lib.actions.cache.ActionCache;
 import com.google.devtools.build.lib.actions.CommandLines;
 import com.google.devtools.build.lib.actions.CommandLines.CommandLineLimits;
 import com.google.devtools.build.lib.actions.EnvironmentalExecException;
@@ -250,5 +251,10 @@ public class NinjaAction extends SpawnAction implements ActionCacheAwareAction {
   @Override
   public boolean storeInputsExecPathsInActionCache() {
     return discoversInputs();
+  }
+
+  @Override
+  public void filterIncludeSrcs(ActionCache.Entry entry) {
+    // no-op
   }
 }

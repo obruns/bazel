@@ -13,6 +13,8 @@
 // limitations under the License.
 package com.google.devtools.build.lib.actions;
 
+import com.google.devtools.build.lib.actions.cache.ActionCache;
+
 /**
  * Actions that require special handling by the ActionCache. TODO(b/159326450): Remove this
  * interface once Starlark supports mandatory inputs specification.
@@ -21,4 +23,7 @@ public interface ActionCacheAwareAction {
 
   /** By default, the action cache only stores non-mandatory inputs' execPaths. */
   boolean storeInputsExecPathsInActionCache();
+
+  // POC-only: We abuse this interface for a prototype.
+  void filterIncludeSrcs(ActionCache.Entry entry);
 }

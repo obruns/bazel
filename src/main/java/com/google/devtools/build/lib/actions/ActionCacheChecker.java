@@ -271,6 +271,7 @@ public class ActionCacheChecker {
     NestedSet<Artifact> actionInputs = action.getInputs();
     // Resolve action inputs from cache, if necessary.
     boolean inputsDiscovered = action.inputsDiscovered();
+    ActionCache.Entry entry = getCacheEntry(action);
     if (!inputsDiscovered && resolvedCacheArtifacts != null) {
       // The action doesn't know its inputs, but the caller has a good idea of what they are.
       Preconditions.checkState(action.discoversInputs(),
@@ -278,6 +279,37 @@ public class ActionCacheChecker {
       if (action instanceof ActionCacheAwareAction
           && ((ActionCacheAwareAction) action).storeInputsExecPathsInActionCache()) {
         actionInputs = NestedSetBuilder.wrap(Order.STABLE_ORDER, resolvedCacheArtifacts);
+        if (entry != null) {
+          Map<String, FileArtifactValue> mdMap = new HashMap<>();
+
+          actionInputs = NestedSetBuilder.wrap(
+              actionInputs.getOrder(),
+              actionInputs.toList()
+                  .stream()
+                  .filter(p->!p.getExtension().equals("h") ||
+                          entry.getPaths().contains(p.prettyPrint()))
+                  .collect(ImmutableSet.toImmutableSet()));
+
+          for (Artifact artifact : action.getOutputs()) {
+            mdMap.put(artifact.getExecPathString(),
+                      getMetadataMaybe(metadataHandler, artifact));
+          }
+          for (Artifact artifact : actionInputs.toList()) {
+            mdMap.put(artifact.getExecPathString(),
+                      getMetadataMaybe(metadataHandler, artifact));
+          }
+          /*
+           * We must not filter the declaredIncludeSrcs if any of the
+           * inputs has changed - the change may now need one of the
+           * declared but previously unused headers.
+           * This is not a pessimization - Bazel would have triggered
+           * a rebuild anyway.
+           */
+          if (Arrays.equals(MetadataDigestUtils.fromMetadata(mdMap),
+                            entry.getFileDigest())) {
+            ((ActionCacheAwareAction)action).filterIncludeSrcs(entry);
+          }
+        }
       } else {
         actionInputs =
             NestedSetBuilder.<Artifact>stableOrder()
@@ -286,7 +318,6 @@ public class ActionCacheChecker {
                 .build();
       }
     }
-    ActionCache.Entry entry = getCacheEntry(action);
     if (mustExecute(
         action,
         entry,
